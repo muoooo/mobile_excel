@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mobile Excel Editor</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f5f5f5;
+      padding: 10px;
+    }
+
+    .btn {
+      padding: 8px 12px;
+      background: #1e293b;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .btn-light {
+      background: white;
+      color: black;
+      border: 1px solid #ccc;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    input {
+      width: 100%;
+      padding: 6px;
+    }
+  </style>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/file-saver/dist/FileSaver.min.js"></script>
+</head>
+
+<body>
+  <h2>Mobile Excel Editor</h2>
+
+  <button class="btn" onclick="addColumn()">+ Col</button>
+  <button class="btn" onclick="addRow()">+ Row</button>
+  <button class="btn" onclick="exportExcel()">Export</button>
+  <label class="btn-light btn">Import <input type="file" id="fileInput" accept=".xlsx,.csv" style="display:none"
+      onchange="importExcel(event)"></label>
+
+  <br><br>
+
+  <div style="overflow-x:auto;">
+    <table id="sheet"></table>
+  </div>
+
+  <script>
+    let columns = ["A"];
+    let rows = [{}];
+
+    function colLabel(index) {
+      let s = "", n = index + 1;
+      while (n > 0) {
+        const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26);
+      }
+      return s;
+    }
+
+    function render() {
+      const table = document.getElementById("sheet");
+      let html = "<thead><tr><th>#</th>";
+      columns.forEach((c, i) => {
+        html += `<th>${c} <button onclick='removeColumn(${i})'>x</button></th>`;
+      });
+      html += "</tr></thead><tbody>";
+
+      rows.forEach((row, ri) => {
+        html += `<tr><td>${ri + 1}</td>`;
+        columns.forEach((c, ci) => {
+          const v = row[c] || "";
+          html += `<td><input value='${v}' oninput='updateCell(${ri},${ci},this.value)'></td>`;
+        });
+        html += `<td><button onclick='removeRow(${ri})'>Delete</button></td>`;
+        html += "</tr>";
+      });
+
+      html += "</tbody>";
+      table.innerHTML = html;
+    }
+
+    function addColumn() { columns.push(colLabel(columns.length)); render(); }
+    function removeColumn(i) { const k = columns[i]; columns.splice(i, 1); rows.forEach(r => delete r[k]); render(); }
+
+    function addRow() { rows.push({}); render(); }
+    function removeRow(i) { rows.splice(i, 1); render(); }
+
+    function updateCell(r, c, val) { rows[r][columns[c]] = val; }
+
+    function exportExcel() {
+      const header = columns;
+      const data = [header, ...rows.map(r => header.map(h => r[h] || ""))];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+      const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      saveAs(new Blob([out], { type: "application/octet-stream" }), "sheet.xlsx");
+    }
+
+    function importExcel(ev) {
+      const file = ev.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const wb = XLSX.read(e.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        columns = aoa[0].map((_, i) => colLabel(i));
+        rows = aoa.slice(1).map(r => {
+          const o = {}; columns.forEach((c, i) => o[c] = r[i] || ""); return o;
+        });
+        render();
+      }
+      reader.readAsArrayBuffer(file);
+    }
+
+    render();
+  </script>
+</body>
+
+</html>
